@@ -18,7 +18,7 @@ API_KEY = "61VlR0WusRIndHjGVKEPStGeHggSOmtJW1wKG6aTMqA"
 output_dir = "centroid_images"
 os.makedirs(output_dir, exist_ok=True)
 
-
+# Initial Filtering, processing the file
 def process_file(fname):
     df = pd.read_csv(fname)
     coords_list = []
@@ -30,17 +30,21 @@ def process_file(fname):
         coords_list.extend(filtered_group[['latitude', 'longitude']].values.tolist())
     return coords_list
 
-def filter_points_by_distance(coords, threshold=0.0005):
+# KD-tree to filter sparse points out
+def filter_points_by_distance(coords, threshold=0.0000000005):
     tree = KDTree(coords)
     to_keep = []
+    # Heuristic for the optimal value of K
+    k_opt = max(int(0.01 * len(coords)), 2)
     for i, point in enumerate(coords):
-        dist, idx = tree.query(point, k=2)  
-        if dist[1] <= threshold: 
+        dist, idx = tree.query(point, k = k_opt)  # Find the closest neighbor
+        if dist[k_opt - 1] <= threshold:  # Check if the second closest point (not itself) is within the threshold
             to_keep.append(True)
         else:
             to_keep.append(False)
     return coords[to_keep]
 
+# Plotting the clusters, their centroids and boxing them in squares
 def plot_cluster_squares_and_centroids(ax, filtered_data, cluster_labels, square_size=0.009):
     half_size = square_size / 2 
 
@@ -57,7 +61,9 @@ def plot_cluster_squares_and_centroids(ax, filtered_data, cluster_labels, square
         ax.add_patch(square)
         ax.scatter(centroid_lon, centroid_lat, c='red', marker='x', s=100, label=f'Cluster {cluster} Centroid')
 
+# Main function
 def main():
+    # Processing in batches
     for i in range (15):
         output_dir = f"centroid_images/{i}"
         os.makedirs(output_dir, exist_ok=True)
@@ -67,6 +73,7 @@ def main():
         roundabouts = pd.read_csv(roundabout_csv)
         roundabout = roundabouts[roundabouts['bbox'] == i]
         
+        # Parallelising the process
         with ProcessPoolExecutor(max_workers=os.cpu_count()) as executor:
             results = list(executor.map(process_file, glob.glob(path)))
         
@@ -79,6 +86,7 @@ def main():
         print(filtered_coords)
         print(len(filtered_coords))
 
+        # Distortions to find the optimal value of k in k-means clustering using the "elbow" method
         distortions = []
         k_range = range(2, 9)  
 
@@ -95,6 +103,7 @@ def main():
         filtered_data = pd.DataFrame(filtered_coords, columns=['latitude', 'longitude'])
         filtered_data['cluster'] = cluster_labels
         
+        # Plots
         fig, ax = plt.subplots(figsize=(12, 8))
         
         scatter = ax.scatter(filtered_data['longitude'], filtered_data['latitude'], 
