@@ -30,12 +30,13 @@ def process_file(fname):
         coords_list.extend(filtered_group[['latitude', 'longitude']].values.tolist())
     return coords_list
 
-def filter_points_by_distance(coords, threshold=0.0005):
+def filter_points_by_distance(coords, threshold=0.0000000005):
     tree = KDTree(coords)
     to_keep = []
+    k_opt = max(int(0.01 * len(coords)), 2)
     for i, point in enumerate(coords):
-        dist, idx = tree.query(point, k=2)  
-        if dist[1] <= threshold: 
+        dist, idx = tree.query(point, k = k_opt)  # Find the closest neighbor
+        if dist[k_opt - 1] <= threshold:  # Check if the second closest point (not itself) is within the threshold
             to_keep.append(True)
         else:
             to_keep.append(False)
